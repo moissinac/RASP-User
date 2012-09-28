@@ -9,8 +9,26 @@ $fuseauHoraire = 2; // utc + 2
 
 // -- fonction utiles -------------------------------------
 
-function direction($u, $v)
+function direction($u, $v, $good)
 {
+$stringNum = array(
+     "N" => 0,
+     "NNE" => 2,
+     "NE" => 4,
+     "ENE" => 6,
+     "E" => 8,
+    "ESE" => 10,
+    "SE" => 12,
+    "SSE" => 14,
+    "S" => 16,
+    "SSO" => 18,
+    "SO" => 20,
+    "OSO" => 22,
+    "O" => 24,
+    "ONO" => 26,
+    "NO" => 28,
+    "NNO" => 30
+);
 $dirString = array(
      0 => "N",
      1 => "NNE",
@@ -46,9 +64,32 @@ $dirString = array(
     31 => "N",
     32 => "N"
 );
-  $dir = (atan2($u, $v)/pi() + 1)*180;
+  $pi = 3.14159;  
+  $dir = (atan2($u, $v)/$pi + 1)*180;
   $dirSecteur = round($dir/11.25);
-  return $dirString[$dirSecteur];
+  $goods = str_getcsv($good);
+  //var_dump($goods);
+  $col = "white";
+  foreach ($goods as $good)
+  {
+    //echo $good . '?';
+    if ($good!='')
+    {
+      $num = $stringNum[$good];
+      // echo 'ref='.$num.' et wind='.$dirSecteur . '! ';
+      //je n'arrive pas Ó bien formuler l'intervalle sur mes numÚros de secteur
+      if ((($num+3)>=$dirSecteur)and(($num-3)<=$dirSecteur))      $col="lightgreen";
+      if ($num==0)
+      {
+        if (($dirSecteur==31)or($dirSecteur==30)or($dirSecteur==29))      $col="lightgreen";
+      }
+      if ($num==1)
+      {
+        if ($dirSecteur==31)      $col="lightgreen";
+      }
+    }
+  }
+  print "<td bgcolor='". $col . "'>" . $dirString[$dirSecteur] . "</td>";
 }
 
 function vitesse($u, $v)
@@ -67,6 +108,8 @@ foreach ( $jsonstatus['france'] as $run )
 
 // -- boulot -------------------------------------
 $place = sprintf('%.4f,%.4f', $_GET['lat'], $_GET['lon']);
+$good = '';
+if (isset($_GET['good'])) $good = $_GET['good'];
 
 $args = array(
   'domain'=>'france',
@@ -74,7 +117,7 @@ $args = array(
   'places'=>$place,
   'dates'=>$run['day'],
   'heures'=>sprintf('%d-%d',$utcStart,$utcStop),
-  'params'=>'usfc;vsfc;pbltop'  // usfc = umet[0]
+  'params'=>'usfc;vsfc;pbltop;wstar'  // usfc = umet[0]
 );
 
 $query = http_build_query($args);
@@ -84,9 +127,6 @@ $request = 'http://data2.rasp-france.org/json.php?'.$query;
 //echo $request . '<br/>';
 $response  = file_get_contents($request);
 $jsondata  = json_decode($response, true);
-//var_dump($jsondata); exit();
-
-
 
 header('Content-type: text/html; charset=utf-8');
 ?>
@@ -121,8 +161,8 @@ Previsions <a href="http://rasp-france.org/" title="Site de previsions meteo pou
 <td>Direction du vent</td>
 <?php
   for ($h=$utcStart; $h<$max; $h++) {
-    $dir = direction($jsondata[$place][$run['day']][$h]['usfc'], $jsondata[$place][$run['day']][$h]['vsfc']);
-    echo "<td>${dir}</td>\n";
+    $dir = direction($jsondata[$place][$run['day']][$h]['usfc'], $jsondata[$place][$run['day']][$h]['vsfc'], $good);
+    echo "${dir}\n";
   }
 ?>
 </tr>
@@ -135,7 +175,17 @@ Previsions <a href="http://rasp-france.org/" title="Site de previsions meteo pou
   }
 ?>
 </tr>
+<tr>
+<td>Vitesse moyenne des thermiques</td>
+<?php
+  for ($h=$utcStart; $h<$max; $h++) {
+    $vit = $jsondata[$place][$run['day']][$h]['wstar'];
+    echo "<td>${vit}</td>\n";
+  }
+?>
+</tr>
 </table>
 
 </body>
 </html>
+
