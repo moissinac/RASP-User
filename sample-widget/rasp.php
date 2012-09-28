@@ -64,8 +64,7 @@ $dirString = array(
     31 => "N",
     32 => "N"
 );
-  $pi = 3.14159;  
-  $dir = (atan2($u, $v)/$pi + 1)*180;
+  $dir = (atan2($u, $v)/pi() + 1)*180;
   $dirSecteur = round($dir/11.25);
   $goods = str_getcsv($good);
   //var_dump($goods);
