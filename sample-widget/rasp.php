@@ -1,11 +1,34 @@
-<html>
 <?php
-header('Content-type: text/html; charset=utf-8');
-?>
-<body>
-<?php
-function direction($u, $v)
+// configuration ------------------------------
+$utcStart = 7;
+$utcStop = 18;
+
+$fuseauHoraire = 2; // utc + 2
+
+// fin configuration -----------------------------
+
+// -- fonction utiles -------------------------------------
+
+function direction($u, $v, $good)
 {
+$stringNum = array(
+     "N" => 0,
+     "NNE" => 2,
+     "NE" => 4,
+     "ENE" => 6,
+     "E" => 8,
+    "ESE" => 10,
+    "SE" => 12,
+    "SSE" => 14,
+    "S" => 16,
+    "SSO" => 18,
+    "SO" => 20,
+    "OSO" => 22,
+    "O" => 24,
+    "ONO" => 26,
+    "NO" => 28,
+    "NNO" => 30
+);
 $dirString = array(
      0 => "N",
      1 => "NNE",
@@ -41,18 +64,37 @@ $dirString = array(
     31 => "N",
     32 => "N"
 );
-  $pi = 3.14159;  
-  $dir = (atan2($u, $v)/$pi + 1)*180;
+  $dir = (atan2($u, $v)/pi() + 1)*180;
   $dirSecteur = round($dir/11.25);
-  print $dirString[$dirSecteur];
+  $goods = str_getcsv($good);
+  //var_dump($goods);
+  $col = "white";
+  foreach ($goods as $good)
+  {
+    //echo $good . '?';
+    if ($good!='')
+    {
+      $num = $stringNum[$good];
+      // echo 'ref='.$num.' et wind='.$dirSecteur . '! ';
+      //je n'arrive pas Ã“ bien formuler l'intervalle sur mes numÃšros de secteur
+      if ((($num+3)>=$dirSecteur)and(($num-3)<=$dirSecteur))      $col="lightgreen";
+      if ($num==0)
+      {
+        if (($dirSecteur==31)or($dirSecteur==30)or($dirSecteur==29))      $col="lightgreen";
+      }
+      if ($num==1)
+      {
+        if ($dirSecteur==31)      $col="lightgreen";
+      }
+    }
+  }
+  print "<td bgcolor='". $col . "'>" . $dirString[$dirSecteur] . "</td>";
 }
 
 function vitesse($u, $v)
 {
-  print round(sqrt($u*$u+$v*$v)*3.6);
+  return round(sqrt($u*$u+$v*$v)*3.6);
 }
-?>
-<?php
 
 $request = 'http://data2.rasp-france.org/status.php';
 $response  = file_get_contents($request);
@@ -62,100 +104,87 @@ foreach ( $jsonstatus['france'] as $run )
   if ($run['status']=='complete')
     break;
 }
-echo 'Previsions <a href="http://rasp-france.org/" title="Site de previsions meteo pour parapente">RASP-France</a> n=' . $run['run'] . ' du ' . $run['day'] . '<br/>';
 
-// echo 'Prévision n°' . $jsonstatus['france'][0]['run'] . ' du ' . $jsonstatus['france'][0]['day'] . '<br/>';
-$lat = $_GET['lat'];
-$lon = $_GET['lon'];
-//$place = '49.93,1.06';
-$place = '' . $lat . ','. $lon;
+// -- boulot -------------------------------------
+$place = sprintf('%.4f,%.4f', $_GET['lat'], $_GET['lon']);
+$good = '';
+if (isset($_GET['good'])) $good = $_GET['good'];
+
+$args = array(
+  'domain'=>'france',
+  'run'=>$run['run'],
+  'places'=>$place,
+  'dates'=>$run['day'],
+  'heures'=>sprintf('%d-%d',$utcStart,$utcStop),
+  'params'=>'usfc;vsfc;pbltop;wstar'  // usfc = umet[0]
+);
+
+$query = http_build_query($args);
+
 //echo $place;
-$request = 'http://data2.rasp-france.org/json.php?domain=france&run=' . $run['run'] . '&places=' . $place . '&dates=' . $run['day'] .'&heures=8-18&' .'params=umet;vmet;pbltop';
+$request = 'http://data2.rasp-france.org/json.php?'.$query;
 //echo $request . '<br/>';
 $response  = file_get_contents($request);
 $jsondata  = json_decode($response, true);
-//var_dump($jsonobj);
+
+header('Content-type: text/html; charset=utf-8');
 ?>
+<html>
+<body>
+Previsions <a href="http://rasp-france.org/" title="Site de previsions meteo pour parapente">RASP-France</a> n=<?php echo $run['run'] ?> du <?php echo $run['day'] ?> <br/>
 <table border="1">
 <tr>
-<td>UTC+2</td>
-<td>10h</td>
-<td>11h</td>
-<td>12h</td>
-<td>13h</td>
-<td>14h</td>
-<td>15h</td>
-<td>16h</td>
-<td>17h</td>
-<td>18h</td>
-<td>19h</td>
-<td>20h</td>
+<td>UTC+<?php echo $fuseauHoraire ?></td>
+<?php
+  $max = $utcStop+1;
+  for ($h=$utcStart; $h<$max; $h++) {
+    $heureLocale = str_pad($h+$fuseauHoraire, 2, '0', STR_PAD_LEFT);
+    echo "<td>${heureLocale}h</td>\n";
+  }
+?>
 </tr>
 <tr>
 <td>Plafond couche convective</td>
-<td><?php
-echo round($jsondata[$place][$run['day']]['8']['pbltop']);
-?></td>
-<td><?php
-echo round($jsondata[$place][$run['day']]['9']['pbltop']);
-?></td>
-<td><?php
-echo round($jsondata[$place][$run['day']]['10']['pbltop']);
-?></td>
-<td><?php
-echo round($jsondata[$place][$run['day']]['11']['pbltop']);
-?></td>
-<td><?php
-echo round($jsondata[$place][$run['day']]['12']['pbltop']);
-?></td>
-<td><?php
-echo round($jsondata[$place][$run['day']]['13']['pbltop']);
-?></td>
-<td><?php
-echo round($jsondata[$place][$run['day']]['14']['pbltop']);
-?></td>
-<td><?php
-echo round($jsondata[$place][$run['day']]['15']['pbltop']);
-?></td>
-<td><?php
-echo round($jsondata[$place][$run['day']]['16']['pbltop']);
-?></td>
-<td><?php
-echo round($jsondata[$place][$run['day']]['17']['pbltop']);
-?></td>
-<td><?php
-echo round($jsondata[$place][$run['day']]['18']['pbltop']);
+<?php
+  $max = $utcStop+1;
+  for ($h=$utcStart; $h<$max; $h++) {
+    $pbltop = round($jsondata[$place][$run['day']][$h]['pbltop']);
+    echo "<td>${pbltop}</td>\n";
+  }
+?>
+<?php
+
 ?></td>
 </tr>
 <tr>
 <td>Direction du vent</td>
-<td><?php direction($jsondata[$place][$run['day']]['8']['umet'][0], $jsondata[$place][$run['day']]['8']['vmet'][0]); ?></td>
-<td><?php direction($jsondata[$place][$run['day']]['9']['umet'][0], $jsondata[$place][$run['day']]['9']['vmet'][0]); ?></td>
-<td><?php direction($jsondata[$place][$run['day']]['10']['umet'][0], $jsondata[$place][$run['day']]['10']['vmet'][0]); ?></td>
-<td><?php direction($jsondata[$place][$run['day']]['11']['umet'][0], $jsondata[$place][$run['day']]['11']['vmet'][0]); ?></td>
-<td><?php direction($jsondata[$place][$run['day']]['12']['umet'][0], $jsondata[$place][$run['day']]['12']['vmet'][0]); ?></td>
-<td><?php direction($jsondata[$place][$run['day']]['13']['umet'][0], $jsondata[$place][$run['day']]['13']['vmet'][0]); ?></td>
-<td><?php direction($jsondata[$place][$run['day']]['14']['umet'][0], $jsondata[$place][$run['day']]['14']['vmet'][0]); ?></td>
-<td><?php direction($jsondata[$place][$run['day']]['15']['umet'][0], $jsondata[$place][$run['day']]['15']['vmet'][0]); ?></td>
-<td><?php direction($jsondata[$place][$run['day']]['16']['umet'][0], $jsondata[$place][$run['day']]['16']['vmet'][0]); ?></td>
-<td><?php direction($jsondata[$place][$run['day']]['17']['umet'][0], $jsondata[$place][$run['day']]['17']['vmet'][0]); ?></td>
-<td><?php direction($jsondata[$place][$run['day']]['18']['umet'][0], $jsondata[$place][$run['day']]['18']['vmet'][0]); ?></td>
+<?php
+  for ($h=$utcStart; $h<$max; $h++) {
+    $dir = direction($jsondata[$place][$run['day']][$h]['usfc'], $jsondata[$place][$run['day']][$h]['vsfc'], $good);
+    echo "${dir}\n";
+  }
+?>
 </tr>
 <tr>
 <td>Vitesse du vent (km/h)</td>
-<td><?php vitesse($jsondata[$place][$run['day']]['8']['umet'][0], $jsondata[$place][$run['day']]['8']['vmet'][0]); ?></td>
-<td><?php vitesse($jsondata[$place][$run['day']]['9']['umet'][0], $jsondata[$place][$run['day']]['9']['vmet'][0]); ?></td>
-<td><?php vitesse($jsondata[$place][$run['day']]['10']['umet'][0], $jsondata[$place][$run['day']]['10']['vmet'][0]); ?></td>
-<td><?php vitesse($jsondata[$place][$run['day']]['11']['umet'][0], $jsondata[$place][$run['day']]['11']['vmet'][0]); ?></td>
-<td><?php vitesse($jsondata[$place][$run['day']]['12']['umet'][0], $jsondata[$place][$run['day']]['12']['vmet'][0]); ?></td>
-<td><?php vitesse($jsondata[$place][$run['day']]['13']['umet'][0], $jsondata[$place][$run['day']]['13']['vmet'][0]); ?></td>
-<td><?php vitesse($jsondata[$place][$run['day']]['14']['umet'][0], $jsondata[$place][$run['day']]['14']['vmet'][0]); ?></td>
-<td><?php vitesse($jsondata[$place][$run['day']]['15']['umet'][0], $jsondata[$place][$run['day']]['15']['vmet'][0]); ?></td>
-<td><?php vitesse($jsondata[$place][$run['day']]['16']['umet'][0], $jsondata[$place][$run['day']]['16']['vmet'][0]); ?></td>
-<td><?php vitesse($jsondata[$place][$run['day']]['17']['umet'][0], $jsondata[$place][$run['day']]['17']['vmet'][0]); ?></td>
-<td><?php vitesse($jsondata[$place][$run['day']]['18']['umet'][0], $jsondata[$place][$run['day']]['18']['vmet'][0]); ?></td>
+<?php
+  for ($h=$utcStart; $h<$max; $h++) {
+    $vit = vitesse($jsondata[$place][$run['day']][$h]['usfc'], $jsondata[$place][$run['day']][$h]['vsfc']);
+    echo "<td>${vit}</td>\n";
+  }
+?>
+</tr>
+<tr>
+<td>Vitesse moyenne des thermiques</td>
+<?php
+  for ($h=$utcStart; $h<$max; $h++) {
+    $vit = $jsondata[$place][$run['day']][$h]['wstar'];
+    echo "<td>${vit}</td>\n";
+  }
+?>
 </tr>
 </table>
 
 </body>
 </html>
+
